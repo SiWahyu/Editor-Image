@@ -133,7 +133,6 @@ export const Navbar = React.forwardRef(
       },
       [ref]
     );
-
     return (
       <header
         ref={combinedRef}
@@ -147,7 +146,7 @@ export const Navbar = React.forwardRef(
           {/* Left side */}
           <div className="flex items-center gap-2">
             {/* Mobile menu trigger */}
-            {isMobile && (
+            {/* {isMobile && (
               <Popover>
                 <PopoverTrigger asChild>
                   <Button
@@ -180,7 +179,7 @@ export const Navbar = React.forwardRef(
                   </NavigationMenu>
                 </PopoverContent>
               </Popover>
-            )}
+            )} */}
             {/* Main nav */}
             <div className="flex items-center gap-6">
               <button
@@ -188,12 +187,10 @@ export const Navbar = React.forwardRef(
                 className="flex items-center space-x-2 text-primary hover:text-primary/90 transition-colors cursor-pointer"
               >
                 <div className="text-2xl">{logo}</div>
-                <span className="hidden font-bold text-xl sm:inline-block">
-                  EditImage
-                </span>
+                <span className="font-bold text-xl">EditImage</span>
               </button>
               {/* Navigation menu */}
-              {!isMobile && (
+              {/* {!isMobile && (
                 <NavigationMenu className="flex">
                   <NavigationMenuList className="gap-1">
                     {navigationLinks.map((link, index) => (
@@ -213,12 +210,12 @@ export const Navbar = React.forwardRef(
                     ))}
                   </NavigationMenuList>
                 </NavigationMenu>
-              )}
+              )} */}
             </div>
           </div>
           {/* Right side */}
           <div className="flex items-center gap-3">
-            <Button
+            {/* <Button
               variant="ghost"
               size="sm"
               className="text-sm font-medium hover:bg-accent hover:text-accent-foreground"
@@ -228,7 +225,7 @@ export const Navbar = React.forwardRef(
               }}
             >
               {signInText}
-            </Button>
+            </Button> */}
             <AnimatedThemeToggler />
           </div>
         </div>
