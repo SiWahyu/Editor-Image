@@ -187,7 +187,7 @@ export const Navbar = React.forwardRef(
                 className="flex items-center space-x-2 text-primary hover:text-primary/90 transition-colors cursor-pointer"
               >
                 <div className="text-2xl">{logo}</div>
-                <span className="font-bold text-xl">EditImage</span>
+                <span className="font-bold text-xl">Vixel</span>
               </button>
               {/* Navigation menu */}
               {/* {!isMobile && (
