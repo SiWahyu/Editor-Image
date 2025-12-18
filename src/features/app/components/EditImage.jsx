@@ -11,15 +11,18 @@ import {
   FlipHorizontal2,
   FlipVertical2,
   RotateCcw,
-  Crop as CropIcon,
+  Crop,
+  RotateCw,
+  MoveDown,
 } from "lucide-react";
 import ReactCrop from "react-image-crop";
 import "react-image-crop/dist/ReactCrop.css";
 
-import randomStringCrypto from "../../../utils/randomStringCrypto";
+const randomStringCrypto = () => {
+  return Math.random().toString(36).substring(2, 15);
+};
 
 const EditImage = ({ editImageRef }) => {
-  // 1. STATE DASAR & STAGE SIZE (Harus Paling Atas)
   const [imgSrc, setImageSrc] = useState(null);
   const [image] = useImage(imgSrc, "anonymous");
 
@@ -29,35 +32,45 @@ const EditImage = ({ editImageRef }) => {
   });
   const [stageSize, setStageSize] = useState(getStageSize());
 
-  // 2. REFS
   const imageRef = useRef(null);
   const stageRef = useRef(null);
   const cacheTick = useRef();
 
-  // 3. TRANSFORM & FILTER STATES
   const [scale, setScale] = useState({ x: 1, y: 1 });
-
   const [brightness, setBrightness] = useState(0);
-
   const [contrast, setContrast] = useState(0);
-
   const [blurRadius, setBlurRadius] = useState(0);
-
   const [noise, setNoise] = useState(0);
-
   const [hue, setHue] = useState(0);
-
   const [saturation, setSaturation] = useState(0);
-
   const [luminance, setLuminance] = useState(0);
-
   const [value, setValue] = useState(0);
-
   const [activeFilter, setActiveFilter] = useState([]);
-
   const [rotation, setRotation] = useState(0);
 
-  // 4. CROP STATES
+  const activeFilters = useMemo(() => {
+    const filters = [...activeFilter];
+    if (brightness !== 0) filters.push(Konva.Filters.Brighten);
+    if (contrast !== 0) filters.push(Konva.Filters.Contrast);
+    if (blurRadius > 0) filters.push(Konva.Filters.Blur);
+    if (hue !== 0 || saturation !== 0 || luminance !== 0)
+      filters.push(Konva.Filters.HSL);
+    if (noise > 0) filters.push(Konva.Filters.Noise);
+    if (value !== 0) filters.push(Konva.Filters.HSV);
+    return filters;
+  }, [
+    brightness,
+    contrast,
+    blurRadius,
+    noise,
+    hue,
+    saturation,
+    luminance,
+    value,
+    activeFilter,
+  ]);
+
+  //crop
   const [crop, setCrop] = useState({
     unit: "px",
     width: 100,
@@ -82,7 +95,6 @@ const EditImage = ({ editImageRef }) => {
 
   useEffect(() => {
     if (image && cropConfig) {
-      // Hitung skala berdasarkan cropConfig yang ada, bukan image asli
       const scaleX = stageSize.width / cropConfig.width;
       const scaleY = stageSize.height / cropConfig.height;
       const newScale = Math.min(scaleX, scaleY) * 0.9;
@@ -115,10 +127,32 @@ const EditImage = ({ editImageRef }) => {
   };
 
   useEffect(() => {
+    const handleResize = () => setStageSize(getStageSize());
+    window.addEventListener("resize", handleResize);
+    return () => window.removeEventListener("resize", handleResize);
+  }, []);
+
+  useEffect(() => {
+    if (image) {
+      setCropConfig({ x: 0, y: 0, width: image.width, height: image.height });
+    }
+  }, [image]);
+
+  useEffect(() => {
+    if (image && cropConfig) {
+      const scaleX = stageSize.width / cropConfig.width;
+      const scaleY = stageSize.height / cropConfig.height;
+      const newScale = Math.min(scaleX, scaleY) * 0.9;
+      setScale({ x: newScale, y: newScale });
+    }
+  }, [stageSize, image, cropConfig]);
+
+  useEffect(() => {
     if (!imageRef.current) return;
     const applyFilters = () => {
       const node = imageRef.current;
       if (node) {
+        node.clearCache();
         node.cache();
         node.getLayer().batchDraw();
       }
@@ -135,6 +169,8 @@ const EditImage = ({ editImageRef }) => {
     activeFilter,
     cropConfig,
     luminance,
+    value,
+    noise,
   ]);
 
   const handleFileChange = (e) => {
@@ -147,17 +183,13 @@ const EditImage = ({ editImageRef }) => {
 
   const toggleFlipHorizontal = () => {
     const node = imageRef.current;
-
     node.scaleX(node.scaleX() * -1);
-
     node.getLayer().batchDraw();
   };
 
   const toggleFlipVertical = () => {
     const node = imageRef.current;
-
     node.scaleY(node.scaleY() * -1);
-
     node.getLayer().batchDraw();
   };
 
@@ -180,14 +212,11 @@ const EditImage = ({ editImageRef }) => {
     () => [
       {
         name: "Brightness",
-
         value: "brightness",
-
         content: (
           <div className="w-full flex flex-col gap-6">
             <div className="flex flex-row justify-between items-center">
               <div className="font-medium text-sm">Brightness</div>
-
               <Button
                 variant="outline"
                 size="sm"
@@ -196,7 +225,6 @@ const EditImage = ({ editImageRef }) => {
                 Reset
               </Button>
             </div>
-
             <Slider
               value={[brightness]}
               min={-1}
@@ -208,17 +236,13 @@ const EditImage = ({ editImageRef }) => {
           </div>
         ),
       },
-
       {
         name: "Contrast",
-
         value: "contrast",
-
         content: (
           <div className="w-full flex flex-col gap-6">
             <div className="flex flex-row justify-between items-center">
               <div className="font-medium text-sm">Contrast</div>
-
               <Button
                 variant="outline"
                 size="sm"
@@ -227,7 +251,6 @@ const EditImage = ({ editImageRef }) => {
                 Reset
               </Button>
             </div>
-
             <Slider
               value={[contrast]}
               min={-100}
@@ -238,7 +261,6 @@ const EditImage = ({ editImageRef }) => {
           </div>
         ),
       },
-
       {
         name: "Blur",
         value: "blur",
@@ -246,7 +268,6 @@ const EditImage = ({ editImageRef }) => {
           <div className="w-full flex flex-col gap-6">
             <div className="flex flex-row justify-between items-center">
               <div className="font-medium text-sm">Blur</div>
-
               <Button
                 variant="outline"
                 size="sm"
@@ -255,7 +276,6 @@ const EditImage = ({ editImageRef }) => {
                 Reset
               </Button>
             </div>
-
             <Slider
               value={[blurRadius]}
               min={0}
@@ -273,12 +293,10 @@ const EditImage = ({ editImageRef }) => {
           <div className="w-full flex flex-col gap-6">
             <div className="flex flex-row justify-between items-center">
               <div className="font-medium text-sm">Noise</div>
-
               <Button variant="outline" size="sm" onClick={() => setNoise(0)}>
                 Reset
               </Button>
             </div>
-
             <Slider
               value={[noise]}
               min={0}
@@ -290,27 +308,21 @@ const EditImage = ({ editImageRef }) => {
           </div>
         ),
       },
-
       {
         name: "HSL/V",
-
         value: "hsv",
-
         content: (
           <div className="w-full flex flex-col gap-6">
             <div className="text-xs font-bold opacity-50 uppercase">
               Hue, Saturation, Luminance & Value
             </div>
-
             <div className="w-full flex flex-col gap-6">
               <div className="flex flex-row justify-between items-center">
                 <div className="font-medium text-sm">Hue</div>
-
                 <Button variant="outline" size="sm" onClick={() => setHue(0)}>
                   Reset
                 </Button>
               </div>
-
               <Slider
                 value={[hue]}
                 min={-259}
@@ -379,22 +391,19 @@ const EditImage = ({ editImageRef }) => {
         ),
       },
     ],
-
     [brightness, contrast, blurRadius, noise, hue, saturation, value, luminance]
   );
+
   const tabsRotation = useMemo(
     () => [
       {
         name: "Flip",
-
         value: "flip",
-
         content: (
           <div className="flex flex-row justify-center gap-4 ">
             <Button variant="outline" onClick={toggleFlipHorizontal}>
               <FlipHorizontal2 className="mr-2 size-4" /> Horizontal
             </Button>
-
             <Button variant="outline" onClick={toggleFlipVertical}>
               <FlipVertical2 className="mr-2 size-4" /> Vertical
             </Button>
@@ -403,9 +412,7 @@ const EditImage = ({ editImageRef }) => {
       },
       {
         name: "Rotation",
-
         value: "rotation",
-
         content: (
           <div className="w-full flex flex-col gap-6">
             <div className="flex flex-row justify-between items-center">
@@ -429,29 +436,7 @@ const EditImage = ({ editImageRef }) => {
         ),
       },
     ],
-
     [rotation]
-  );
-
-  const cropTabContent = useMemo(
-    () => (
-      <div className="flex flex-col gap-4 p-2">
-        <div className="overflow-auto max-h-[300px] border rounded-lg bg-black/5">
-          <ReactCrop
-            crop={crop}
-            onChange={(c) => setCrop(c)}
-            onComplete={(c) => setCompletedCrop(c)}
-          >
-            <img src={imgSrc} alt="To Crop" className="max-w-full" />
-          </ReactCrop>
-        </div>
-        <Button className="w-full bg-blue-600" onClick={applyCrop}>
-          Apply Transformation
-        </Button>
-      </div>
-    ),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [imgSrc, crop, completedCrop, stageSize]
   );
 
   const filterPresetsContent = useMemo(() => {
@@ -465,7 +450,7 @@ const EditImage = ({ editImageRef }) => {
 
     return (
       <div className="w-full py-4">
-        <div className="flex flex-row gap-4 overflow-x-auto pb-4 px-2 scrollbar-hide">
+        <div className="flex flex-row gap-4 overflow-x-auto pb-4 px-2">
           {presets.map((item) => (
             <div
               key={item.name}
@@ -516,6 +501,28 @@ const EditImage = ({ editImageRef }) => {
     ],
     [filterPresetsContent]
   );
+
+  const tabsCrop = useMemo(
+    () => (
+      <div className="flex flex-col gap-4 p-2">
+        <div className="overflow-auto border rounded-lg bg-black/5">
+          <ReactCrop
+            crop={crop}
+            onChange={(c) => setCrop(c)}
+            onComplete={(c) => setCompletedCrop(c)}
+          >
+            <img src={imgSrc} alt="To Crop" className="max-w-full" />
+          </ReactCrop>
+        </div>
+        <Button className="w-full bg-blue-600" onClick={applyCrop}>
+          Apply Transformation
+        </Button>
+      </div>
+    ),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [imgSrc, crop, completedCrop, stageSize]
+  );
+
   const handleDownload = () => {
     if (!stageRef.current) return;
 
@@ -531,9 +538,10 @@ const EditImage = ({ editImageRef }) => {
     link.click();
     document.body.removeChild(link);
   };
+
   return (
     <div
-      className="h-screen w-full flex flex-col items-center justify-center p-4"
+      className="min-h-screen w-full flex flex-col items-center justify-center p-4"
       ref={editImageRef}
     >
       <input
@@ -578,7 +586,7 @@ const EditImage = ({ editImageRef }) => {
                     <Blend size={16} />
                   </TabsTrigger>
                   <TabsTrigger value="crop">
-                    <CropIcon size={16} />
+                    <Blend size={16} />
                   </TabsTrigger>
                 </TabsList>
                 <TabsContent value="finetune" className="py-4 space-y-6">
@@ -596,7 +604,7 @@ const EditImage = ({ editImageRef }) => {
                     <div key={i}>{t.content}</div>
                   ))}
                 </TabsContent>
-                <TabsContent value="crop">{cropTabContent}</TabsContent>
+                <TabsContent value="crop">{tabsCrop}</TabsContent>
               </Tabs>
             </div>
 
@@ -620,15 +628,7 @@ const EditImage = ({ editImageRef }) => {
                       offsetX={(cropConfig?.width || image.width) / 2}
                       offsetY={(cropConfig?.height || image.height) / 2}
                       rotation={rotation}
-                      filters={[
-                        ...activeFilter,
-                        Konva.Filters.Brighten,
-                        Konva.Filters.Contrast,
-                        Konva.Filters.Blur,
-                        Konva.Filters.HSL,
-                        Konva.Filters.Noise,
-                        Konva.Filters.HSV,
-                      ]}
+                      filters={activeFilters}
                       brightness={brightness}
                       contrast={contrast}
                       blurRadius={blurRadius}
@@ -645,11 +645,17 @@ const EditImage = ({ editImageRef }) => {
           </div>
         </div>
       ) : (
-        <div
-          className="p-20 border-2 border-dashed rounded-3xl cursor-pointer"
-          onClick={() => document.getElementById("upload").click()}
-        >
+        <div className="flex flex-col text-center justify-center items-center gap-4">
           <h2 className="text-2xl font-bold">Upload to Start</h2>
+          <div className="">
+            <MoveDown className="size-14" />
+          </div>
+          <div
+            className="p-20 border-2 border-dashed rounded-3xl cursor-pointer hover:border-blue-500 transition-colors"
+            onClick={() => document.getElementById("upload").click()}
+          >
+            <h2 className="text-2xl font-bold">Upload to Start</h2>
+          </div>
         </div>
       )}
     </div>

@@ -1,5 +1,7 @@
+import AnimatedGridPattern from "@/components/ui/animated-grid-pattern";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 import { ArrowUpRight, CirclePlay } from "lucide-react";
 import { Link } from "react-router-dom";
 
@@ -7,10 +9,18 @@ export default function Hero({ scrollEditImage }) {
   const handleScroll = () => {
     scrollEditImage.current.scrollIntoView({ behavior: "smooth" });
   };
-
   return (
-    <div className="min-h-screen flex items-center justify-center px-6">
-      <div className="text-center max-w-3xl">
+    <div className="relative min-h-screen flex items-center justify-center px-6 overflow-hidden">
+      <AnimatedGridPattern
+        numSquares={30}
+        maxOpacity={0.1}
+        duration={3}
+        className={cn(
+          "mask-[radial-gradient(800px_circle_at_center,white,transparent)]",
+          "inset-x-0 h-full skew-y-12"
+        )}
+      />
+      <div className="relative z-10 text-center max-w-3xl">
         <Badge
           variant="secondary"
           className="rounded-full py-1 border-border"
@@ -34,14 +44,14 @@ export default function Hero({ scrollEditImage }) {
             className="rounded-full text-base"
             onClick={handleScroll}
           >
-            Get Started <ArrowUpRight className="size-5" />
+            Get Started <ArrowUpRight className="h-5! w-5!" />
           </Button>
           <Button
             variant="outline"
             size="lg"
             className="rounded-full text-base shadow-none"
           >
-            <CirclePlay className="size-5" /> Watch Demo
+            <CirclePlay className="h-5! w-5!" /> Watch Demo
           </Button>
         </div>
       </div>

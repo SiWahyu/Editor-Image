@@ -1,7 +1,7 @@
 import AppLayout from "../../../layouts/AppLayout";
-import Hero from "../components/Hero";
 import EditImage from "../components/EditImage";
 import { useRef } from "react";
+import Hero from "../components/hero";
 
 export default function AppPage() {
   const editImageRef = useRef(null);
