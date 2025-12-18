@@ -450,7 +450,15 @@ const EditImage = ({ editImageRef }) => {
 
     return (
       <div className="w-full py-4">
-        <div className="flex flex-row gap-4 overflow-x-auto pb-4 px-2">
+        <div
+          className="flex flex-row gap-4 overflow-x-auto pb-4 px-2  [&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar]:h-2
+  [&::-webkit-scrollbar-track]:rounded-full
+  [&::-webkit-scrollbar-track]:bg-gray-100
+  [&::-webkit-scrollbar-thumb]:rounded-full
+  [&::-webkit-scrollbar-thumb]:bg-gray-300
+  dark:[&::-webkit-scrollbar-track]:bg-neutral-700
+  dark:[&::-webkit-scrollbar-thumb]:bg-neutral-500"
+        >
           {presets.map((item) => (
             <div
               key={item.name}
@@ -505,7 +513,15 @@ const EditImage = ({ editImageRef }) => {
   const tabsCrop = useMemo(
     () => (
       <div className="flex flex-col gap-4 p-2">
-        <div className="overflow-auto border rounded-lg bg-black/5">
+        <div
+          className="overflow-auto [&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar]:h-2
+  [&::-webkit-scrollbar-track]:rounded-full
+  [&::-webkit-scrollbar-track]:bg-gray-100
+  [&::-webkit-scrollbar-thumb]:rounded-full
+  [&::-webkit-scrollbar-thumb]:bg-gray-300
+  dark:[&::-webkit-scrollbar-track]:bg-neutral-700
+  dark:[&::-webkit-scrollbar-thumb]:bg-neutral-500 border rounded-lg bg-black/5"
+        >
           <ReactCrop
             crop={crop}
             onChange={(c) => setCrop(c)}
