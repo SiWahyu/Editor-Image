@@ -514,7 +514,10 @@ const EditImage = ({ editImageRef }) => {
             <img src={imgSrc} alt="To Crop" className="max-w-full" />
           </ReactCrop>
         </div>
-        <Button className="w-full bg-blue-600" onClick={applyCrop}>
+        <Button
+          className="w-full bg-blue-600 hover:bg-blue-500 text-white"
+          onClick={applyCrop}
+        >
           Apply Transformation
         </Button>
       </div>
@@ -560,7 +563,10 @@ const EditImage = ({ editImageRef }) => {
             >
               Change Image
             </Button>
-            <Button onClick={handleDownload} className="bg-blue-600 text-white">
+            <Button
+              onClick={handleDownload}
+              className="bg-blue-600 hover:bg-blue-500 text-white"
+            >
               Download PNG
             </Button>
           </div>
@@ -586,7 +592,7 @@ const EditImage = ({ editImageRef }) => {
                     <Blend size={16} />
                   </TabsTrigger>
                   <TabsTrigger value="crop">
-                    <Blend size={16} />
+                    <Crop size={16} />
                   </TabsTrigger>
                 </TabsList>
                 <TabsContent value="finetune" className="py-4 space-y-6">
