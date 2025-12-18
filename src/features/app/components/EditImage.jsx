@@ -1,6 +1,5 @@
-/* eslint-disable no-unused-vars */
 import { Stage, Layer, Image as KonvaImage } from "react-konva";
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
 import useImage from "use-image";
 import Konva from "konva";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -12,782 +11,648 @@ import {
   FlipHorizontal2,
   FlipVertical2,
   RotateCcw,
+  Crop as CropIcon,
 } from "lucide-react";
+import ReactCrop from "react-image-crop";
+import "react-image-crop/dist/ReactCrop.css";
+
 import randomStringCrypto from "../../../utils/randomStringCrypto";
 
 const EditImage = ({ editImageRef }) => {
+  // 1. STATE DASAR & STAGE SIZE (Harus Paling Atas)
   const [imgSrc, setImageSrc] = useState(null);
-
   const [image] = useImage(imgSrc, "anonymous");
 
-  const handleFileChange = (e) => {
-    const file = e.target.files[0];
-    if (!file) return;
+  const getStageSize = () => ({
+    width: Math.min(window.innerWidth - 32, 800),
+    height: Math.min(window.innerHeight * 0.5, 500),
+  });
+  const [stageSize, setStageSize] = useState(getStageSize());
 
-    const reader = new FileReader();
-    reader.onload = () => {
-      setImageSrc(reader.result);
-    };
-    reader.readAsDataURL(file);
-  };
-
+  // 2. REFS
   const imageRef = useRef(null);
   const stageRef = useRef(null);
+  const cacheTick = useRef();
 
-  useEffect(() => {
-    if (image) {
-      const scaleX = 800 / image.width;
-      const scaleY = 500 / image.height;
-
-      const finalScale = Math.min(scaleX, scaleY);
-
-      // eslint-disable-next-line react-hooks/immutability
-      setScale({ x: finalScale, y: finalScale });
-    }
-  }, [image]);
-
-  useEffect(() => {
-    if (!image || !imageRef.current) return;
-
-    const node = imageRef.current;
-    node.cache();
-    node.getLayer().batchDraw();
-  }, [image]);
-
+  // 3. TRANSFORM & FILTER STATES
   const [scale, setScale] = useState({ x: 1, y: 1 });
 
   const [brightness, setBrightness] = useState(0);
 
   const [contrast, setContrast] = useState(0);
+
   const [blurRadius, setBlurRadius] = useState(0);
+
   const [noise, setNoise] = useState(0);
 
-  // hsl dan hsv
   const [hue, setHue] = useState(0);
+
   const [saturation, setSaturation] = useState(0);
+
   const [luminance, setLuminance] = useState(0);
+
   const [value, setValue] = useState(0);
+
   const [activeFilter, setActiveFilter] = useState([]);
 
   const [rotation, setRotation] = useState(0);
 
-  const toggleFlipHorizontal = () => {
-    const node = imageRef.current;
-    node.scaleX(node.scaleX() * -1);
-    node.getLayer().batchDraw();
-  };
-
-  const toggleFlipVertical = () => {
-    const node = imageRef.current;
-    node.scaleY(node.scaleY() * -1);
-    node.getLayer().batchDraw();
-  };
-
-  const tabsFinetune = [
-    {
-      name: "Brightness",
-      value: "brightness",
-      content: (
-        <>
-          <div className="w-full">
-            <div className="flex flex-col gap-4.5">
-              <div className="flex flex-row justify-between">
-                <div className="font-medium ">Brightness</div>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setBrightness(0)}
-                >
-                  Reset
-                </Button>
-              </div>
-              <Slider
-                value={[brightness]}
-                min={-1}
-                max={1}
-                step={0.01}
-                onValueChange={(v) => setBrightness(v[0])}
-                on
-                className="[&>.relative]:bg-neutral-950/20 dark:bg-white/20 [&_.slider-track]:bg-transparent [&>.relative>span[data-orientation=horizontal]]:bg-transparent  [&_[role=slider]]:relative [&_[role=slider]::after]:content-[attr(aria-valuenow)] [&_[role=slider]::after]:absolute [&_[role=slider]::after]:-top-6 [&_[role=slider]::after]:text-xs [&_[role=slider]::after]:font-semibold
-  "
-              />
-              <div className="flex justify-between text-xs px-0.5">
-                <span className="text-foreground font-semibold -ml-1">-1</span>
-
-                <span className="text-foreground font-semibold">1</span>
-              </div>
-            </div>
-          </div>
-        </>
-      ),
-    },
-    {
-      name: "Contrast",
-      value: "contrast",
-      content: (
-        <>
-          <div className="w-full">
-            <div className="flex flex-col gap-4.5">
-              <div className="flex flex-row justify-between">
-                <div className="font-medium text-sm">Contrast</div>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setContrast(0)}
-                >
-                  Reset
-                </Button>
-              </div>
-              <Slider
-                value={[contrast]}
-                min={-100}
-                max={100}
-                step={1}
-                onValueChange={(v) => setContrast(v[0])}
-                className="[&>.relative]:bg-neutral-950/20 dark:bg-white/20 [&_.slider-track]:bg-transparent [&>.relative>span[data-orientation=horizontal]]:bg-transparent  [&_[role=slider]]:relative [&_[role=slider]::after]:content-[attr(aria-valuenow)] [&_[role=slider]::after]:absolute [&_[role=slider]::after]:-top-6 [&_[role=slider]::after]:text-xs [&_[role=slider]::after]:font-semibold
-  "
-              />
-              <div className="flex justify-between text-xs px-0.5">
-                <span className="text-foreground font-semibold -ml-1">-50</span>
-                <span className="text-foreground font-semibold">50</span>
-              </div>
-            </div>
-          </div>
-        </>
-      ),
-    },
-    {
-      name: "Blur",
-      value: "blur",
-      content: (
-        <>
-          <div className="w-full">
-            <div className="flex flex-col gap-4.5">
-              <div className="flex flex-row justify-between">
-                <div className="font-medium text-sm">Blur</div>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setBlurRadius(0)}
-                >
-                  Reset
-                </Button>
-              </div>
-              <Slider
-                value={[blurRadius]}
-                min={0}
-                max={50}
-                step={1}
-                onValueChange={(v) => setBlurRadius(v[0])}
-                className="[&>.relative]:bg-neutral-950/20 dark:bg-white/20 [&_.slider-track]:bg-transparent [&>.relative>span[data-orientation=horizontal]]:bg-transparent  [&_[role=slider]]:relative [&_[role=slider]::after]:content-[attr(aria-valuenow)] [&_[role=slider]::after]:absolute [&_[role=slider]::after]:-top-6 [&_[role=slider]::after]:text-xs [&_[role=slider]::after]:font-semibold
-  "
-              />
-              <div className="flex justify-between text-xs px-0.5">
-                <span className="text-foreground font-semibold">
-                  {blurRadius}
-                </span>
-                <span className="text-foreground font-semibold">50</span>
-              </div>
-            </div>
-          </div>
-        </>
-      ),
-    },
-    {
-      name: "Noise",
-      value: "noise",
-      content: (
-        <>
-          <div className="w-full">
-            <div className="flex flex-col gap-4.5">
-              <div className="flex flex-row justify-between">
-                <div className="font-medium text-sm">Noise</div>
-                <Button variant="outline" size="sm" onClick={() => setNoise(0)}>
-                  Reset
-                </Button>
-              </div>
-              <Slider
-                value={[noise]}
-                min={0}
-                max={1}
-                step={0.1}
-                onValueChange={(v) => setNoise(v[0])}
-                className="[&>.relative]:bg-neutral-950/20 dark:bg-white/20 [&_.slider-track]:bg-transparent [&>.relative>span[data-orientation=horizontal]]:bg-transparent  [&_[role=slider]]:relative [&_[role=slider]::after]:content-[attr(aria-valuenow)] [&_[role=slider]::after]:absolute [&_[role=slider]::after]:-top-6 [&_[role=slider]::after]:text-xs [&_[role=slider]::after]:font-semibold
-  "
-              />
-              <div className="flex justify-between text-xs px-0.5">
-                <span className="text-foreground font-semibold -ml-1">0</span>
-                <span className="text-foreground font-semibold">1</span>
-              </div>
-            </div>
-          </div>
-        </>
-      ),
-    },
-    {
-      name: "HSL",
-      value: "hsl",
-      content: (
-        <>
-          <div className="w-full">
-            <div className="flex flex-col gap-6">
-              <div className="flex flex-col gap-4.5">
-                <div className="flex flex-row justify-between">
-                  <div className="font-medium text-sm">Hue</div>
-                  <Button variant="outline" size="sm" onClick={() => setHue(0)}>
-                    Reset
-                  </Button>
-                </div>
-                <Slider
-                  value={[hue]}
-                  min={-259}
-                  max={259}
-                  step={1}
-                  onValueChange={(v) => setHue(v[0])}
-                  className="[&>.relative]:bg-neutral-950/20 dark:bg-white/20 [&_.slider-track]:bg-transparent [&>.relative>span[data-orientation=horizontal]]:bg-transparent  [&_[role=slider]]:relative [&_[role=slider]::after]:content-[attr(aria-valuenow)] [&_[role=slider]::after]:absolute [&_[role=slider]::after]:-top-6 [&_[role=slider]::after]:text-xs [&_[role=slider]::after]:font-semibold
-  "
-                />
-              </div>
-              <div className="flex flex-col gap-4.5">
-                <div className="flex flex-row justify-between">
-                  <div className="font-medium text-sm">Saturation</div>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => setSaturation(0)}
-                  >
-                    Reset
-                  </Button>
-                </div>
-                <Slider
-                  value={[saturation]}
-                  min={-2}
-                  max={10}
-                  step={0.1}
-                  onValueChange={(v) => setSaturation(v[0])}
-                  className="[&>.relative]:bg-neutral-950/20 dark:bg-white/20 [&_.slider-track]:bg-transparent [&>.relative>span[data-orientation=horizontal]]:bg-transparent  [&_[role=slider]]:relative [&_[role=slider]::after]:content-[attr(aria-valuenow)] [&_[role=slider]::after]:absolute [&_[role=slider]::after]:-top-6 [&_[role=slider]::after]:text-xs [&_[role=slider]::after]:font-semibold
-  "
-                />
-              </div>
-              <div className="flex flex-col gap-4.5">
-                <div className="flex flex-row justify-between">
-                  <div className="font-medium text-sm">Lumince</div>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => setLuminance(0)}
-                  >
-                    Reset
-                  </Button>
-                </div>
-                <Slider
-                  value={[luminance]}
-                  min={-2}
-                  max={2}
-                  step={0.1}
-                  onValueChange={(v) => setLuminance(v[0])}
-                  className="[&>.relative]:bg-neutral-950/20 dark:bg-white/20 [&_.slider-track]:bg-transparent [&>.relative>span[data-orientation=horizontal]]:bg-transparent  [&_[role=slider]]:relative [&_[role=slider]::after]:content-[attr(aria-valuenow)] [&_[role=slider]::after]:absolute [&_[role=slider]::after]:-top-6 [&_[role=slider]::after]:text-xs [&_[role=slider]::after]:font-semibold
-  "
-                />
-              </div>
-              <div className="flex justify-between text-xs px-0.5">
-                <span className="text-foreground font-semibold -ml-1">-2</span>
-
-                <span className="text-foreground font-semibold">10</span>
-              </div>
-            </div>
-          </div>
-        </>
-      ),
-    },
-    {
-      name: "HSV",
-      value: "hsv",
-      content: (
-        <>
-          <div className="w-full">
-            <div className="flex flex-col gap-6">
-              <div className="flex flex-col gap-4.5 ">
-                <div className="flex flex-row justify-between">
-                  <div className="font-medium text-sm">Hue</div>
-                  <Button variant="outline" size="sm" onClick={() => setHue(0)}>
-                    Reset
-                  </Button>
-                </div>
-                <Slider
-                  value={[hue]}
-                  min={-259}
-                  max={259}
-                  step={1}
-                  onValueChange={(v) => setHue(v[0])}
-                  className="[&>.relative]:bg-neutral-950/20 dark:bg-white/20 [&_.slider-track]:bg-transparent [&>.relative>span[data-orientation=horizontal]]:bg-transparent  [&_[role=slider]]:relative [&_[role=slider]::after]:content-[attr(aria-valuenow)] [&_[role=slider]::after]:absolute [&_[role=slider]::after]:-top-6 [&_[role=slider]::after]:text-xs [&_[role=slider]::after]:font-semibold
-  "
-                />
-              </div>
-              <div className="flex flex-col gap-4.5">
-                <div className="flex flex-row justify-between">
-                  <div className="font-medium text-sm">Saturation</div>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => setSaturation(0)}
-                  >
-                    Reset
-                  </Button>
-                </div>
-                <Slider
-                  value={[saturation]}
-                  min={-2}
-                  max={10}
-                  step={0.1}
-                  onValueChange={(v) => setSaturation(v[0])}
-                  className="[&>.relative]:bg-neutral-950/20 dark:bg-white/20 [&_.slider-track]:bg-transparent [&>.relative>span[data-orientation=horizontal]]:bg-transparent  [&_[role=slider]]:relative [&_[role=slider]::after]:content-[attr(aria-valuenow)] [&_[role=slider]::after]:absolute [&_[role=slider]::after]:-top-6 [&_[role=slider]::after]:text-xs [&_[role=slider]::after]:font-semibold
-  "
-                />
-              </div>
-              <div className="flex flex-col gap-4.5">
-                <div className="flex flex-row justify-between">
-                  <div className="font-medium text-sm">Value</div>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => setValue(0)}
-                  >
-                    Reset
-                  </Button>
-                </div>
-                <Slider
-                  value={[value]}
-                  min={-2}
-                  max={2}
-                  step={0.1}
-                  onValueChange={(v) => setValue(v[0])}
-                  className="[&>.relative]:bg-neutral-950/20 dark:bg-white/20 [&_.slider-track]:bg-transparent [&>.relative>span[data-orientation=horizontal]]:bg-transparent  [&_[role=slider]]:relative [&_[role=slider]::after]:content-[attr(aria-valuenow)] [&_[role=slider]::after]:absolute [&_[role=slider]::after]:-top-6 [&_[role=slider]::after]:text-xs [&_[role=slider]::after]:font-semibold
-  "
-                />
-              </div>
-              <div className="flex justify-between text-xs px-0.5">
-                <span className="text-foreground font-semibold -ml-1">-2</span>
-                <span className="text-foreground font-semibold">10</span>
-              </div>
-            </div>
-          </div>
-        </>
-      ),
-    },
-  ];
-  const tabsRotation = [
-    {
-      name: "Flip",
-      value: "flip",
-      content: (
-        <>
-          <div className="w-full">
-            <div className="flex flex-col gap-4.5">
-              <div className="font-medium text-sm text-center">Flip</div>
-              <div className="flex flex-row justify-center gap-4">
-                <button
-                  onClick={toggleFlipHorizontal}
-                  className="flex gap-1 items-center border px-3 py-0.5 text-sm border-neutral-300 rounded-lg"
-                >
-                  <FlipHorizontal2 className="size-4" />
-                  <span>Flip Horizontal </span>
-                </button>
-                <button
-                  onClick={toggleFlipVertical}
-                  className="flex gap-1 items-center border px-3 py-0.5 text-sm border-neutral-300 rounded-lg"
-                >
-                  <FlipVertical2 className="size-4" />
-                  <span>Flip Vertical </span>
-                </button>
-              </div>
-            </div>
-          </div>
-        </>
-      ),
-    },
-    {
-      name: "Rotation",
-      value: "rotation",
-      content: (
-        <>
-          <div className="w-full">
-            <div className="flex flex-col gap-4.5">
-              <div className="flex flex-row justify-between">
-                <div className="font-medium text-sm">Rotation</div>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setRotation(0)}
-                >
-                  Reset
-                </Button>
-              </div>
-              <Slider
-                min={0}
-                max={360}
-                step={1}
-                value={[rotation]}
-                onValueChange={(v) => {
-                  setRotation(v[0]);
-                  imageRef.current.rotation(v[0]);
-                  imageRef.current.getLayer().batchDraw();
-                }}
-                className="[&>.relative]:bg-neutral-950/20 dark:bg-white/20 [&_.slider-track]:bg-transparent [&>.relative>span[data-orientation=horizontal]]:bg-transparent  [&_[role=slider]]:relative [&_[role=slider]::after]:content-[attr(aria-valuenow)] [&_[role=slider]::after]:absolute [&_[role=slider]::after]:-top-6 [&_[role=slider]::after]:text-xs [&_[role=slider]::after]:font-semibold
-  "
-              />
-              <div className="flex justify-between text-xs px-0.5">
-                <span className="text-foreground font-semibold">0</span>
-                <span className="text-foreground font-semibold">360</span>
-              </div>
-            </div>
-          </div>
-        </>
-      ),
-    },
-  ];
-  const sideTabs = [
-    {
-      name: "Finetune",
-      value: "finetune",
-      icon: SlidersHorizontal,
-      content: (
-        <>
-          <div className="w-full px-6 pb-4">
-            <Tabs defaultValue="brightness">
-              {tabsFinetune.map((tab) => (
-                <TabsContent
-                  key={tab.value}
-                  value={tab.value}
-                  className="data-[state=active]:animate-fade-in "
-                >
-                  <div className="min-h-[100px] flex items-center">
-                    {tab.content}
-                  </div>
-                </TabsContent>
-              ))}
-              <div className="flex justify-center items-center">
-                <TabsList className="gap-2">
-                  {tabsFinetune.map((tab) => (
-                    <TabsTrigger
-                      className="px-4 py-4 rounded-xl border-none shadow-none data-[state=active]:bg-background data-[state=active]:text-foreground dark:data-[state=active]:bg-input dark:data-[state=active]:text-foreground"
-                      key={tab.value}
-                      value={tab.value}
-                    >
-                      {tab.name}
-                    </TabsTrigger>
-                  ))}
-                </TabsList>
-              </div>
-            </Tabs>
-          </div>
-        </>
-      ),
-    },
-    {
-      name: "Filters",
-      value: "filters",
-      icon: Blend,
-      content: (
-        <>
-          <div className="w-full py-5.5">
-            <div className="flex flex-row justify-center  gap-4 px-3 py-2">
-              {[
-                { name: "Default", filter: [] },
-                { name: "Grayscale", filter: [Konva.Filters.Grayscale] },
-                { name: "Sepia", filter: [Konva.Filters.Sepia] },
-                { name: "Invert", filter: [Konva.Filters.Invert] },
-                { name: "Pixel", filter: [Konva.Filters.Pixelate] },
-              ].map(({ name, filter }) => (
-                <div
-                  className="flex flex-col items-center justify-center text-center cursor-pointer"
-                  key={name}
-                >
-                  <Stage width={80} height={60}>
-                    <Layer>
-                      <KonvaImage
-                        image={image}
-                        scale={{ x: 0.15, y: 0.15 }}
-                        filters={filter}
-                        ref={(node) => {
-                          if (node) {
-                            node.cache();
-                            node.getLayer()?.batchDraw();
-                          }
-                        }}
-                        onTap={() => setActiveFilter(filter)}
-                        onClick={() => setActiveFilter(filter)}
-                      />
-                    </Layer>
-                  </Stage>
-                  <div className="text-center mt-1 text-xs font-medium">
-                    {name}
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        </>
-      ),
-    },
-    {
-      name: "Rotate",
-      value: "rotate",
-      icon: RotateCcw,
-      content: (
-        <>
-          <div className="w-full px-6 pb-4">
-            <Tabs defaultValue="flip">
-              {tabsRotation.map((tab) => (
-                <TabsContent
-                  key={tab.value}
-                  value={tab.value}
-                  className="data-[state=active]:animate-fade-in "
-                >
-                  <div className="min-h-[100px] flex items-center">
-                    {tab.content}
-                  </div>
-                </TabsContent>
-              ))}
-              <div className="flex justify-center items-center">
-                <TabsList className="gap-2">
-                  {tabsRotation.map((tab) => (
-                    <TabsTrigger
-                      className="px-4 py-4 rounded-xl border-none shadow-none data-[state=active]:bg-background data-[state=active]:text-foreground dark:data-[state=active]:bg-input dark:data-[state=active]:text-foreground"
-                      key={tab.value}
-                      value={tab.value}
-                    >
-                      {tab.name}
-                    </TabsTrigger>
-                  ))}
-                </TabsList>
-              </div>
-            </Tabs>
-          </div>
-        </>
-      ),
-    },
-  ];
-
-  const handleSaveImage = () => {
-    if (!stageRef.current) return;
-
-    const dataURL = stageRef.current.toDataURL({
-      pixelRatio: 2,
-      mimeType: "image/png",
-    });
-
-    const link = document.createElement("a");
-    link.download = randomStringCrypto() + ".png";
-    link.href = dataURL;
-    link.click();
-  };
-
-  const fileUploadRef = useRef(null);
-
-  const getStageSize = () => {
-    const maxWidth = 800;
-    const padding = 16;
-
-    const width = Math.min(window.innerWidth - padding, maxWidth);
-    const height = width * (500 / 800);
-
-    return { width, height };
-  };
-
-  const [stageSize, setStageSize] = useState(getStageSize());
+  // 4. CROP STATES
+  const [crop, setCrop] = useState({
+    unit: "px",
+    width: 100,
+    height: 100,
+    x: 0,
+    y: 0,
+  });
+  const [completedCrop, setCompletedCrop] = useState(null);
+  const [cropConfig, setCropConfig] = useState(null);
 
   useEffect(() => {
-    const handleResize = () => {
-      setStageSize(getStageSize());
-    };
-
+    const handleResize = () => setStageSize(getStageSize());
     window.addEventListener("resize", handleResize);
     return () => window.removeEventListener("resize", handleResize);
   }, []);
 
   useEffect(() => {
-    if (!image || !stageRef.current) return;
+    if (image) {
+      setCropConfig({ x: 0, y: 0, width: image.width, height: image.height });
+    }
+  }, [image]);
 
-    const stage = stageRef.current;
+  useEffect(() => {
+    if (image && cropConfig) {
+      // Hitung skala berdasarkan cropConfig yang ada, bukan image asli
+      const scaleX = stageSize.width / cropConfig.width;
+      const scaleY = stageSize.height / cropConfig.height;
+      const newScale = Math.min(scaleX, scaleY) * 0.9;
+      setScale({ x: newScale, y: newScale });
+    }
+  }, [stageSize, image, cropConfig]);
 
-    const scaleX = stage.width() / image.width;
-    const scaleY = stage.height() / image.height;
+  const applyCrop = () => {
+    if (!completedCrop || !image) return;
+    const imgElement = document.querySelector(".ReactCrop img");
+    if (!imgElement) return;
 
-    const newScale = Math.min(scaleX, scaleY);
+    const ratioX = image.width / imgElement.width;
+    const ratioY = image.height / imgElement.height;
 
-    setScale({ x: newScale, y: newScale });
-  }, [image, stageSize]);
+    const newCrop = {
+      x: completedCrop.x * ratioX,
+      y: completedCrop.y * ratioY,
+      width: completedCrop.width * ratioX,
+      height: completedCrop.height * ratioY,
+    };
 
-  return (
-    <>
-      <div
-        className="h-screen w-full flex flex-col items-center justify-center "
-        ref={editImageRef}
-      >
-        <input
-          ref={fileUploadRef}
-          type="file"
-          accept="image/*"
-          hidden
-          onChange={handleFileChange}
-        />
+    setCropConfig(newCrop);
+    const scaleRatio =
+      Math.min(
+        stageSize.width / newCrop.width,
+        stageSize.height / newCrop.height
+      ) * 0.9;
+    setScale({ x: scaleRatio, y: scaleRatio });
+  };
 
-        {imgSrc ? (
-          <div className="max-w-4xl lg:max-w-fit bg-neutral-100 dark:bg-neutral-900 rounded-xl overflow-auto">
-            <div className="flex flex-row items-center justify-end w-full gap-3 pb-4">
+  useEffect(() => {
+    if (!imageRef.current) return;
+    const applyFilters = () => {
+      const node = imageRef.current;
+      if (node) {
+        node.cache();
+        node.getLayer().batchDraw();
+      }
+    };
+    cancelAnimationFrame(cacheTick.current);
+    cacheTick.current = requestAnimationFrame(applyFilters);
+    return () => cancelAnimationFrame(cacheTick.current);
+  }, [
+    brightness,
+    contrast,
+    blurRadius,
+    hue,
+    saturation,
+    activeFilter,
+    cropConfig,
+    luminance,
+  ]);
+
+  const handleFileChange = (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => setImageSrc(reader.result);
+    reader.readAsDataURL(file);
+  };
+
+  const toggleFlipHorizontal = () => {
+    const node = imageRef.current;
+
+    node.scaleX(node.scaleX() * -1);
+
+    node.getLayer().batchDraw();
+  };
+
+  const toggleFlipVertical = () => {
+    const node = imageRef.current;
+
+    node.scaleY(node.scaleY() * -1);
+
+    node.getLayer().batchDraw();
+  };
+
+  const resetAllFilters = () => {
+    setBrightness(0);
+    setContrast(0);
+    setBlurRadius(0);
+    setNoise(0);
+    setHue(0);
+    setSaturation(0);
+    setRotation(0);
+    setActiveFilter([]);
+    setLuminance(0);
+    setValue(0);
+    if (image)
+      setCropConfig({ x: 0, y: 0, width: image.width, height: image.height });
+  };
+
+  const tabsFinetune = useMemo(
+    () => [
+      {
+        name: "Brightness",
+
+        value: "brightness",
+
+        content: (
+          <div className="w-full flex flex-col gap-6">
+            <div className="flex flex-row justify-between items-center">
+              <div className="font-medium text-sm">Brightness</div>
+
               <Button
-                className="px-7 mx-1.5 bg-green-500 hover:bg-green-600 text-white w-fit"
-                onClick={() => fileUploadRef.current.click()}
+                variant="outline"
+                size="sm"
+                onClick={() => setBrightness(0)}
               >
-                Upload
-              </Button>
-              <Button
-                onClick={handleSaveImage}
-                className="px-7 mx-1.5 bg-blue-600 hover:bg-blue-700 text-white w-fit"
-              >
-                Download
+                Reset
               </Button>
             </div>
-            <Tabs
-              defaultValue="finetune"
-              className="gap-3 flex-col-reverse lg:flex-row"
-            >
-              <TabsList className="h-full lg:flex-col p-0 my-4 mx-auto lg:mx-2 gap-1">
-                {sideTabs.map(({ icon: Icon, name, value }) => (
-                  <TabsTrigger
-                    key={value}
-                    value={value}
-                    className="flex flex-col items-center gap-1 border border-neutral-300 dark:border-neutral-800/90 py-3 px-3 sm:px-3 shadow-none data-[state=active]:bg-background data-[state=active]:text-foreground dark:data-[state=active]:bg-input dark:data-[state=active]:text-foreground text-[15px] font-semibold w-full"
-                  >
-                    <Icon className="size-5" />
-                    {name}
-                  </TabsTrigger>
-                ))}
-              </TabsList>
-              <div className="flex flex-col-reverse gap-4">
-                <div className="flex">
-                  {sideTabs.map((tab) => (
-                    <TabsContent key={tab.value} value={tab.value}>
-                      {tab.content}
-                    </TabsContent>
-                  ))}
-                </div>
-                <div
-                  className="w-full max-w-4xl lg:h-auto lg:overflow-visible  aspect-video [&::-webkit-scrollbar]:w-2
-                [&::-webkit-scrollbar]:h-1.5
-  [&::-webkit-scrollbar-track]:rounded-full
-  [&::-webkit-scrollbar-track]:bg-gray-100
-  [&::-webkit-scrollbar-thumb]:rounded-full
-  [&::-webkit-scrollbar-thumb]:bg-gray-300
-  dark:[&::-webkit-scrollbar-track]:bg-neutral-700
-  dark:[&::-webkit-scrollbar-thumb]:bg-neutral-500"
-                >
-                  <Stage
-                    width={stageSize.width}
-                    height={stageSize.height}
-                    className=""
-                    ref={stageRef}
-                  >
-                    <Layer>
-                      <KonvaImage
-                        ref={imageRef}
-                        image={image}
-                        scale={scale}
-                        x={stageSize.width / 2}
-                        y={stageSize.height / 2}
-                        offsetX={image?.width / 2}
-                        offsetY={image?.height / 2}
-                        filters={[
-                          ...activeFilter,
-                          Konva.Filters.Brighten,
-                          Konva.Filters.Contrast,
-                          Konva.Filters.Blur,
-                          Konva.Filters.Noise,
-                          Konva.Filters.HSL,
-                          Konva.Filters.HSV,
-                        ]}
-                        brightness={brightness}
-                        contrast={contrast}
-                        blurRadius={blurRadius}
-                        noise={noise}
-                        hue={hue}
-                        value={value}
-                        saturation={saturation}
-                        luminance={luminance}
-                        rotation={rotation}
-                      />
-                    </Layer>
-                  </Stage>
-                </div>
-              </div>
-            </Tabs>
+
+            <Slider
+              value={[brightness]}
+              min={-1}
+              max={1}
+              step={0.01}
+              className="[&>.relative]:bg-neutral-950/20 dark:bg-white/20 [&_.slider-track]:bg-transparent [&>.relative>span[data-orientation=horizontal]]:bg-transparent **:[[role=slider]]:relative [&_[role=slider]::after]:content-[attr(aria-valuenow)] [&_[role=slider]::after]:absolute [&_[role=slider]::after]:-top-6 [&_[role=slider]::after]:text-xs [&_[role=slider]::after]:font-semibold"
+              onValueChange={(v) => setBrightness(v[0])}
+            />
           </div>
-        ) : (
-          <>
-            <h1 className="mb-6 text-5xl md:leading-[1.2] font-semibold tracking-tighter">
-              Upload Your Image
-            </h1>
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              width={60}
-              height={60}
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth={2}
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              className="lucide lucide-move-down-icon lucide-move-down mb-4"
-            >
-              <path d="M8 18L12 22L16 18" />
-              <path d="M12 2V22" />
-            </svg>
+        ),
+      },
 
-            <div className="flex items-center justify-center w-md">
-              <label
-                htmlFor="dropzone-file"
-                className="flex flex-col items-center justify-center w-full h-64 border border-neutral-700 dark:border-neutral-300  rounded-xl "
+      {
+        name: "Contrast",
+
+        value: "contrast",
+
+        content: (
+          <div className="w-full flex flex-col gap-6">
+            <div className="flex flex-row justify-between items-center">
+              <div className="font-medium text-sm">Contrast</div>
+
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setContrast(0)}
               >
-                <div className="flex flex-col items-center justify-center pt-5 pb-6">
-                  <svg
-                    className="w-8 h-8 mb-4"
-                    aria-hidden="true"
-                    xmlns="http://www.w3.org/2000/svg"
-                    width={24}
-                    height={24}
-                    fill="none"
-                    viewBox="0 0 24 24"
-                  >
-                    <path
-                      stroke="currentColor"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M15 17h3a3 3 0 0 0 0-6h-.025a5.56 5.56 0 0 0 .025-.5A5.5 5.5 0 0 0 7.207 9.021C7.137 9.017 7.071 9 7 9a4 4 0 1 0 0 8h2.167M12 19v-9m0 0-2 2m2-2 2 2"
-                    />
-                  </svg>
-                  <p className="mb-2 ">
-                    <span className="font-semibold">Click to upload</span> or
-                    drag and drop
-                  </p>
-                  <p className="text-xs">
-                    SVG, PNG, JPG or GIF (MAX. 800x400px)
-                  </p>
-                </div>
-                <input
-                  id="dropzone-file"
-                  type="file"
-                  className="hidden"
-                  onChange={handleFileChange}
-                  accept="image/*"
-                />
-              </label>
+                Reset
+              </Button>
             </div>
-          </>
-        )}
+
+            <Slider
+              value={[contrast]}
+              min={-100}
+              max={100}
+              className="[&>.relative]:bg-neutral-950/20 dark:bg-white/20 [&_.slider-track]:bg-transparent [&>.relative>span[data-orientation=horizontal]]:bg-transparent **:[[role=slider]]:relative [&_[role=slider]::after]:content-[attr(aria-valuenow)] [&_[role=slider]::after]:absolute [&_[role=slider]::after]:-top-6 [&_[role=slider]::after]:text-xs [&_[role=slider]::after]:font-semibold"
+              onValueChange={(v) => setContrast(v[0])}
+            />
+          </div>
+        ),
+      },
+
+      {
+        name: "Blur",
+        value: "blur",
+        content: (
+          <div className="w-full flex flex-col gap-6">
+            <div className="flex flex-row justify-between items-center">
+              <div className="font-medium text-sm">Blur</div>
+
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setBlurRadius(0)}
+              >
+                Reset
+              </Button>
+            </div>
+
+            <Slider
+              value={[blurRadius]}
+              min={0}
+              max={40}
+              className="[&>.relative]:bg-neutral-950/20 dark:bg-white/20 [&_.slider-track]:bg-transparent [&>.relative>span[data-orientation=horizontal]]:bg-transparent **:[[role=slider]]:relative [&_[role=slider]::after]:content-[attr(aria-valuenow)] [&_[role=slider]::after]:absolute [&_[role=slider]::after]:-top-6 [&_[role=slider]::after]:text-xs [&_[role=slider]::after]:font-semibold"
+              onValueChange={(v) => setBlurRadius(v[0])}
+            />
+          </div>
+        ),
+      },
+      {
+        name: "Noise",
+        value: "noise",
+        content: (
+          <div className="w-full flex flex-col gap-6">
+            <div className="flex flex-row justify-between items-center">
+              <div className="font-medium text-sm">Noise</div>
+
+              <Button variant="outline" size="sm" onClick={() => setNoise(0)}>
+                Reset
+              </Button>
+            </div>
+
+            <Slider
+              value={[noise]}
+              min={0}
+              max={1}
+              step={0.1}
+              className="[&>.relative]:bg-neutral-950/20 dark:bg-white/20 [&_.slider-track]:bg-transparent [&>.relative>span[data-orientation=horizontal]]:bg-transparent **:[[role=slider]]:relative [&_[role=slider]::after]:content-[attr(aria-valuenow)] [&_[role=slider]::after]:absolute [&_[role=slider]::after]:-top-6 [&_[role=slider]::after]:text-xs [&_[role=slider]::after]:font-semibold"
+              onValueChange={(v) => setNoise(v[0])}
+            />
+          </div>
+        ),
+      },
+
+      {
+        name: "HSL/V",
+
+        value: "hsv",
+
+        content: (
+          <div className="w-full flex flex-col gap-6">
+            <div className="text-xs font-bold opacity-50 uppercase">
+              Hue, Saturation, Luminance & Value
+            </div>
+
+            <div className="w-full flex flex-col gap-6">
+              <div className="flex flex-row justify-between items-center">
+                <div className="font-medium text-sm">Hue</div>
+
+                <Button variant="outline" size="sm" onClick={() => setHue(0)}>
+                  Reset
+                </Button>
+              </div>
+
+              <Slider
+                value={[hue]}
+                min={-259}
+                max={259}
+                className="[&>.relative]:bg-neutral-950/20 dark:bg-white/20 [&_.slider-track]:bg-transparent [&>.relative>span[data-orientation=horizontal]]:bg-transparent **:[[role=slider]]:relative [&_[role=slider]::after]:content-[attr(aria-valuenow)] [&_[role=slider]::after]:absolute [&_[role=slider]::after]:-top-6 [&_[role=slider]::after]:text-xs [&_[role=slider]::after]:font-semibold"
+                onValueChange={(v) => setHue(v[0])}
+              />
+            </div>
+            <div className="w-full flex flex-col gap-6">
+              <div className="flex flex-row justify-between items-center">
+                <div className="font-medium text-sm">Saturation</div>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setSaturation(0)}
+                >
+                  Reset
+                </Button>
+              </div>
+              <Slider
+                value={[saturation]}
+                min={-2}
+                max={10}
+                step={0.1}
+                className="[&>.relative]:bg-neutral-950/20 dark:bg-white/20 [&_.slider-track]:bg-transparent [&>.relative>span[data-orientation=horizontal]]:bg-transparent **:[[role=slider]]:relative [&_[role=slider]::after]:content-[attr(aria-valuenow)] [&_[role=slider]::after]:absolute [&_[role=slider]::after]:-top-6 [&_[role=slider]::after]:text-xs [&_[role=slider]::after]:font-semibold"
+                onValueChange={(v) => setSaturation(v[0])}
+              />
+            </div>
+            <div className="w-full flex flex-col gap-6">
+              <div className="flex flex-row justify-between items-center">
+                <div className="font-medium text-sm">Luminance</div>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setLuminance(0)}
+                >
+                  Reset
+                </Button>
+              </div>
+              <Slider
+                value={[luminance]}
+                min={-2}
+                max={2}
+                step={0.1}
+                className="[&>.relative]:bg-neutral-950/20 dark:bg-white/20 [&_.slider-track]:bg-transparent [&>.relative>span[data-orientation=horizontal]]:bg-transparent **:[[role=slider]]:relative [&_[role=slider]::after]:content-[attr(aria-valuenow)] [&_[role=slider]::after]:absolute [&_[role=slider]::after]:-top-6 [&_[role=slider]::after]:text-xs [&_[role=slider]::after]:font-semibold"
+                onValueChange={(v) => setLuminance(v[0])}
+              />
+            </div>
+            <div className="w-full flex flex-col gap-6">
+              <div className="flex flex-row justify-between items-center">
+                <div className="font-medium text-sm">Value</div>
+                <Button variant="outline" size="sm" onClick={() => setValue(0)}>
+                  Reset
+                </Button>
+              </div>
+              <Slider
+                value={[value]}
+                min={-2}
+                max={2}
+                step={0.1}
+                className="[&>.relative]:bg-neutral-950/20 dark:bg-white/20 [&_.slider-track]:bg-transparent [&>.relative>span[data-orientation=horizontal]]:bg-transparent **:[[role=slider]]:relative [&_[role=slider]::after]:content-[attr(aria-valuenow)] [&_[role=slider]::after]:absolute [&_[role=slider]::after]:-top-6 [&_[role=slider]::after]:text-xs [&_[role=slider]::after]:font-semibold"
+                onValueChange={(v) => setValue(v[0])}
+              />
+            </div>
+          </div>
+        ),
+      },
+    ],
+
+    [brightness, contrast, blurRadius, noise, hue, saturation, value, luminance]
+  );
+  const tabsRotation = useMemo(
+    () => [
+      {
+        name: "Flip",
+
+        value: "flip",
+
+        content: (
+          <div className="flex flex-row justify-center gap-4 ">
+            <Button variant="outline" onClick={toggleFlipHorizontal}>
+              <FlipHorizontal2 className="mr-2 size-4" /> Horizontal
+            </Button>
+
+            <Button variant="outline" onClick={toggleFlipVertical}>
+              <FlipVertical2 className="mr-2 size-4" /> Vertical
+            </Button>
+          </div>
+        ),
+      },
+      {
+        name: "Rotation",
+
+        value: "rotation",
+
+        content: (
+          <div className="w-full flex flex-col gap-6">
+            <div className="flex flex-row justify-between items-center">
+              <div className="font-medium text-sm">Rotation</div>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setRotation(0)}
+              >
+                Reset
+              </Button>
+            </div>
+            <Slider
+              min={0}
+              max={360}
+              value={[rotation]}
+              className="[&>.relative]:bg-neutral-950/20 dark:bg-white/20 [&_.slider-track]:bg-transparent [&>.relative>span[data-orientation=horizontal]]:bg-transparent **:[[role=slider]]:relative [&_[role=slider]::after]:content-[attr(aria-valuenow)] [&_[role=slider]::after]:absolute [&_[role=slider]::after]:-top-6 [&_[role=slider]::after]:text-xs [&_[role=slider]::after]:font-semibold"
+              onValueChange={(v) => setRotation(v[0])}
+            />
+          </div>
+        ),
+      },
+    ],
+
+    [rotation]
+  );
+
+  const cropTabContent = useMemo(
+    () => (
+      <div className="flex flex-col gap-4 p-2">
+        <div className="overflow-auto max-h-[300px] border rounded-lg bg-black/5">
+          <ReactCrop
+            crop={crop}
+            onChange={(c) => setCrop(c)}
+            onComplete={(c) => setCompletedCrop(c)}
+          >
+            <img src={imgSrc} alt="To Crop" className="max-w-full" />
+          </ReactCrop>
+        </div>
+        <Button className="w-full bg-blue-600" onClick={applyCrop}>
+          Apply Transformation
+        </Button>
       </div>
-    </>
+    ),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [imgSrc, crop, completedCrop, stageSize]
+  );
+
+  const filterPresetsContent = useMemo(() => {
+    const presets = [
+      { name: "Original", filter: [] },
+      { name: "Grayscale", filter: [Konva.Filters.Grayscale] },
+      { name: "Sepia", filter: [Konva.Filters.Sepia] },
+      { name: "Invert", filter: [Konva.Filters.Invert] },
+      { name: "Pixelate", filter: [Konva.Filters.Pixelate] },
+    ];
+
+    return (
+      <div className="w-full py-4">
+        <div className="flex flex-row gap-4 overflow-x-auto pb-4 px-2 scrollbar-hide">
+          {presets.map((item) => (
+            <div
+              key={item.name}
+              className="flex flex-col items-center gap-2 cursor-pointer group"
+              onClick={() => setActiveFilter(item.filter)}
+              onTouchEnd={() => setActiveFilter(item.filter)}
+            >
+              <div className="w-20 h-20 rounded-xl overflow-hidden border-2 border-transparent group-hover:border-blue-500 transition-all bg-neutral-200 dark:bg-neutral-800">
+                <Stage width={80} height={80}>
+                  <Layer>
+                    <KonvaImage
+                      image={image}
+                      scale={{
+                        x: 80 / (image?.width || 1),
+                        y: 80 / (image?.height || 1),
+                      }}
+                      filters={item.filter}
+                      ref={(node) => {
+                        if (node) {
+                          node.cache();
+                        }
+                      }}
+                    />
+                  </Layer>
+                </Stage>
+              </div>
+              <span className="text-[10px] font-bold text-neutral-500 uppercase">
+                {item.name}
+              </span>
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  }, [image]);
+
+  const tabsFilter = useMemo(
+    () => [
+      {
+        name: "Preset",
+        value: "preset",
+        content: (
+          <div className="flex flex-row justify-center gap-4">
+            {filterPresetsContent}
+          </div>
+        ),
+      },
+    ],
+    [filterPresetsContent]
+  );
+  const handleDownload = () => {
+    if (!stageRef.current) return;
+
+    const dataURL = stageRef.current.toDataURL({
+      pixelRatio: 1,
+    });
+
+    const link = document.createElement("a");
+    link.download = randomStringCrypto() + ".png";
+    link.href = dataURL;
+
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+  return (
+    <div
+      className="h-screen w-full flex flex-col items-center justify-center p-4"
+      ref={editImageRef}
+    >
+      <input
+        type="file"
+        id="upload"
+        hidden
+        onChange={handleFileChange}
+        accept="image/*"
+      />
+      {imgSrc ? (
+        <div className="w-full max-w-6xl bg-white dark:bg-neutral-900 shadow-2xl rounded-2xl p-6">
+          <div className="flex justify-between mb-6">
+            <Button
+              onClick={() => document.getElementById("upload").click()}
+              variant="secondary"
+            >
+              Change Image
+            </Button>
+            <Button onClick={handleDownload} className="bg-blue-600 text-white">
+              Download PNG
+            </Button>
+          </div>
+
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 ">
+            <div className="lg:col-span-4 space-y-6 order-2 lg:order-1">
+              <Button
+                onClick={resetAllFilters}
+                variant="default"
+                className="w-full bg-transparent border text-red-500 border-red-600 hover:bg-red-700 hover:text-white"
+              >
+                Reset All
+              </Button>
+              <Tabs defaultValue="finetune">
+                <TabsList className="w-full grid grid-cols-4">
+                  <TabsTrigger value="finetune">
+                    <SlidersHorizontal size={16} />
+                  </TabsTrigger>
+                  <TabsTrigger value="rotation">
+                    <RotateCcw size={16} />
+                  </TabsTrigger>
+                  <TabsTrigger value="filters">
+                    <Blend size={16} />
+                  </TabsTrigger>
+                  <TabsTrigger value="crop">
+                    <CropIcon size={16} />
+                  </TabsTrigger>
+                </TabsList>
+                <TabsContent value="finetune" className="py-4 space-y-6">
+                  {tabsFinetune.map((t, i) => (
+                    <div key={i}>{t.content}</div>
+                  ))}
+                </TabsContent>
+                <TabsContent value="rotation" className="py-4 space-y-6">
+                  {tabsRotation.map((t, i) => (
+                    <div key={i}>{t.content}</div>
+                  ))}
+                </TabsContent>
+                <TabsContent value="filters" className="py-4 space-y-6">
+                  {tabsFilter.map((t, i) => (
+                    <div key={i}>{t.content}</div>
+                  ))}
+                </TabsContent>
+                <TabsContent value="crop">{cropTabContent}</TabsContent>
+              </Tabs>
+            </div>
+
+            <div className="lg:col-span-8 flex justify-center bg-neutral-100 dark:bg-neutral-800 rounded-xl overflow-hidden p-4 order-1 lg:order-2">
+              <Stage
+                width={stageSize.width}
+                height={stageSize.height}
+                ref={stageRef}
+              >
+                <Layer>
+                  {image && (
+                    <KonvaImage
+                      ref={imageRef}
+                      image={image}
+                      scale={scale}
+                      crop={cropConfig || undefined}
+                      width={cropConfig?.width || image.width}
+                      height={cropConfig?.height || image.height}
+                      x={stageSize.width / 2}
+                      y={stageSize.height / 2}
+                      offsetX={(cropConfig?.width || image.width) / 2}
+                      offsetY={(cropConfig?.height || image.height) / 2}
+                      rotation={rotation}
+                      filters={[
+                        ...activeFilter,
+                        Konva.Filters.Brighten,
+                        Konva.Filters.Contrast,
+                        Konva.Filters.Blur,
+                        Konva.Filters.HSL,
+                        Konva.Filters.Noise,
+                        Konva.Filters.HSV,
+                      ]}
+                      brightness={brightness}
+                      contrast={contrast}
+                      blurRadius={blurRadius}
+                      noise={noise}
+                      luminance={luminance}
+                      saturation={saturation}
+                      hue={hue}
+                      value={value}
+                    />
+                  )}
+                </Layer>
+              </Stage>
+            </div>
+          </div>
+        </div>
+      ) : (
+        <div
+          className="p-20 border-2 border-dashed rounded-3xl cursor-pointer"
+          onClick={() => document.getElementById("upload").click()}
+        >
+          <h2 className="text-2xl font-bold">Upload to Start</h2>
+        </div>
+      )}
+    </div>
   );
 };
 
