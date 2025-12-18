@@ -583,29 +583,82 @@ const EditImage = ({ editImageRef }) => {
     link.click();
   };
 
+  const fileUploadRef = useRef(null);
+
+  const getStageSize = () => {
+    const maxWidth = 800;
+    const padding = 16;
+
+    const width = Math.min(window.innerWidth - padding, maxWidth);
+    const height = width * (500 / 800);
+
+    return { width, height };
+  };
+
+  const [stageSize, setStageSize] = useState(getStageSize());
+
+  useEffect(() => {
+    const handleResize = () => {
+      setStageSize(getStageSize());
+    };
+
+    window.addEventListener("resize", handleResize);
+    return () => window.removeEventListener("resize", handleResize);
+  }, []);
+
+  useEffect(() => {
+    if (!image || !stageRef.current) return;
+
+    const stage = stageRef.current;
+
+    const scaleX = stage.width() / image.width;
+    const scaleY = stage.height() / image.height;
+
+    const newScale = Math.min(scaleX, scaleY);
+
+    setScale({ x: newScale, y: newScale });
+  }, [image, stageSize]);
+
   return (
     <>
       <div
         className="h-screen w-full flex flex-col items-center justify-center "
         ref={editImageRef}
       >
+        <input
+          ref={fileUploadRef}
+          type="file"
+          accept="image/*"
+          hidden
+          onChange={handleFileChange}
+        />
+
         {imgSrc ? (
-          <div className="w-fit lg:max-w-fit dark:bg-neutral-900 rounded-xl p-6 overflow-auto">
-            <div className="flex justify-end mx-3">
-              <Button onClick={handleSaveImage} className="px-6">
-                Save
+          <div className="max-w-4xl lg:max-w-fit bg-neutral-100 dark:bg-neutral-900 rounded-xl overflow-auto">
+            <div className="flex flex-row items-center justify-end w-full gap-3 pb-4">
+              <Button
+                className="px-7 mx-1.5 bg-green-500 hover:bg-green-600 text-white w-fit"
+                onClick={() => fileUploadRef.current.click()}
+              >
+                Upload
+              </Button>
+              <Button
+                onClick={handleSaveImage}
+                className="px-7 mx-1.5 bg-blue-600 hover:bg-blue-700 text-white w-fit"
+              >
+                Download
               </Button>
             </div>
             <Tabs
               defaultValue="finetune"
               className="gap-3 flex-col-reverse lg:flex-row"
             >
-              <TabsList className="h-full lg:flex-col p-0 my-4 mx-auto lg:mx-2">
+              <TabsList className="h-full lg:flex-col p-0 my-4 mx-auto lg:mx-2 gap-1">
                 {sideTabs.map(({ icon: Icon, name, value }) => (
                   <TabsTrigger
                     key={value}
                     value={value}
-                    className="flex flex-col items-center gap-1 py-3 px-3 sm:px-3 border-none shadow-none data-[state=active]:bg-background data-[state=active]:text-foreground dark:data-[state=active]:bg-input dark:data-[state=active]:text-foreground text-[15px] font-semibold w-full"
+                    className="flex flex-col items-center gap-1 border border-neutral-300 dark:border-neutral-800/90 py-3 px-3 sm:px-3 shadow-none data-[state=active]:bg-background data-[state=active]:text-foreground dark:data-[state=active]:bg-input dark:data-[state=active]:text-foreground text-[15px] font-semibold w-full"
                   >
                     <Icon className="size-5" />
                     {name}
@@ -621,7 +674,7 @@ const EditImage = ({ editImageRef }) => {
                   ))}
                 </div>
                 <div
-                  className="w-full max-w-4xl lg:h-auto lg:overflow-visible  aspect-video mx-auto [&::-webkit-scrollbar]:w-2
+                  className="w-full max-w-4xl lg:h-auto lg:overflow-visible  aspect-video [&::-webkit-scrollbar]:w-2
                 [&::-webkit-scrollbar]:h-1.5
   [&::-webkit-scrollbar-track]:rounded-full
   [&::-webkit-scrollbar-track]:bg-gray-100
@@ -631,9 +684,9 @@ const EditImage = ({ editImageRef }) => {
   dark:[&::-webkit-scrollbar-thumb]:bg-neutral-500"
                 >
                   <Stage
-                    width={800}
-                    height={500}
-                    className="p-3 rounded-lg"
+                    width={stageSize.width}
+                    height={stageSize.height}
+                    className=""
                     ref={stageRef}
                   >
                     <Layer>
@@ -641,8 +694,8 @@ const EditImage = ({ editImageRef }) => {
                         ref={imageRef}
                         image={image}
                         scale={scale}
-                        x={800 / 2}
-                        y={500 / 2}
+                        x={stageSize.width / 2}
+                        y={stageSize.height / 2}
                         offsetX={image?.width / 2}
                         offsetY={image?.height / 2}
                         filters={[
